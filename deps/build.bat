@@ -66,4 +66,4 @@ xcopy /s ..\builds\libcurl-vc%vc%-%machine%-release-static-ipv6-sspi-schannel\li
 cd /D %currentdir%
 
 echo Done!
-pause
+exit /B 0

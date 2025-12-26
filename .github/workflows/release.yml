@@ -1,0 +1,82 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ "master", "main" ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ "master", "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Install NSIS
+      run: |
+        choco install nsis -y
+        echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Build dependencies
+      shell: cmd
+      run: |
+        cd deps
+        call build.bat --machine ${{ matrix.arch }}
+        cd ..
+
+    - name: Verify dependencies were built
+      run: |
+        if (-not (Test-Path "deps\lib\${{ matrix.arch }}\libcurl_a.lib")) {
+          exit 1
+        }
+
+    - name: Build Taiga
+      run: msbuild project\vs2022\Taiga.sln /p:Configuration=Release /p:Platform=${{ matrix.arch }} /m
+
+    - name: Verify Taiga.exe was built
+      run: |
+        if (-not (Test-Path "bin\${{ matrix.arch }}\Release\Taiga.exe")) {
+          exit 1
+        }
+
+    - name: Build installer
+      shell: cmd
+      run: |
+        "C:\Program Files (x86)\NSIS\makensis.exe" /DMACHINE=${{ matrix.arch }} setup\Taiga.nsi
+
+    - name: Copy and rename installer
+      run: |
+        $installerPath = "bin\${{ matrix.arch }}\TaigaSetup.exe"
+        if (-not (Test-Path $installerPath)) {
+          $installerPath = (Get-ChildItem -Recurse bin -Filter "TaigaSetup.exe" | Select-Object -First 1).FullName
+        }
+        Copy-Item $installerPath "TaigaSetup_${{ matrix.arch }}.exe"
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-${{ matrix.arch }}
+        path: TaigaSetup_${{ matrix.arch }}.exe
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: TaigaSetup_${{ matrix.arch }}.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
