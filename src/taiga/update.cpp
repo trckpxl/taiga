@@ -108,7 +108,7 @@ void UpdateHelper::Check() {
 
 void UpdateHelper::CheckAnimeRelations() {
   taiga::http::Request request;
-  request.set_target(WstrToStr(current_item_->taiga_anime_relations_location));
+  request.set_target("https://raw.githubusercontent.com/trckpxl/anime-relations/master/anime-relations.txt");
 
   ui::DlgUpdate.progressbar.SetPosition(0);
   ui::DlgUpdate.SetDlgItemText(IDC_STATIC_UPDATE_PROGRESS,
